@@ -1,6 +1,75 @@
-# Template repository
+# Orcfax Simple Sign
 
-Template repository for Python projects.
+Provides simple signing and verification of data following the approach
+outlined in [CIP-8][CIP-8].
+
+[CIP-8]: https://cips.cardano.org/cip/CIP-0008
+
+The command-line application and library is intended to provide helper functions
+for consistent signing and verification functions across distributed dapps and
+other applications utilizing Cardano off-chain.
+
+## Creating a signing key
+
+You need a signing key and address that can then be used to verify the source
+of the signed data.
+
+> If you hold the key, you hold the address that can be used to verify data.
+
+The `cardano-cli` can be used to generate a signing key. E.g. on
+preview/preprod.
+
+```sh
+cardano-cli address key-gen \
+ --verification-key-file payment.vkey \
+ --signing-key-file payment.skey
+```
+
+```sh
+cardano-cli address build \
+ --payment-verification-key-file payment.vkey \
+ --out-file payment.addr \
+ --mainnet
+```
+
+The key can then be given to the app with arbitrary data to be signed.
+
+## Basic signing and verification
+
+### Signing
+
+Example signing with `payment.skey` with addr `...`:
+
+```sh
+python sign.py sign -d "arbitrary data" -s "$(cat payment.skey)"
+```
+
+Outputs:
+
+<!--markdownlint-disable -->
+```text
+TODO
+```
+<!--markdownlint-enable -->
+
+### Verification
+
+Example verification, looking for addr `...`:
+
+```sh
+python sign.py verify \
+ -d "TODO"
+```
+
+Outputs:
+
+```python
+{
+    'verified': True,
+    'message': 'arbitrary data',
+    'signing_address': 'addr1v896758x5jv32tdzx5tl8hftasmxd8ydlqmtxwdrpqyv9wchg8mj2'
+}
+```
 
 ## Developer install
 
