@@ -38,7 +38,8 @@ The key can then be given to the app with arbitrary data to be signed.
 
 ### Signing
 
-Example signing with `payment.skey` with addr `...`:
+Example signing with `payment.skey` with addr
+`addr1v90vykgaft6lylq79u7uvxqc3hxmnf8tz7uyxael6gpz3lsfnggam`:
 
 ```sh
 python sign.py sign -d "arbitrary data" -s "$(cat payment.skey)"
@@ -48,17 +49,19 @@ Outputs:
 
 <!--markdownlint-disable -->
 ```text
-TODO
+84584da301276761646472657373581d615ec2591d4af5f27c1e2f3dc618188dcdb9a4eb17b843773fd20228fe045820d88b447a19aa5ffcabc4270dd38017bda068c9f84b6fb05cb0fee73261fbb777a166686173686564f44e6172626974726172792064617461584025b3ef85838d62f40eb3fe5b1ac7cf802ca4d076a07575572bc88601968bafa2b4aa106c8636cc93bd4337385527cb31194e65925062c59857d69fbccd4f3f01
 ```
 <!--markdownlint-enable -->
 
 ### Verification
 
-Example verification, looking for addr `...`:
+Example verification, looking for addr
+`addr1v90vykgaft6lylq79u7uvxqc3hxmnf8tz7uyxael6gpz3lsfnggam`:
 
 ```sh
 python sign.py verify \
- -d "TODO"
+ -d "84584da301276761646472657373581d615ec2591d4af5f27c1e2f3dc618188dcdb9a4eb17b843773fd20228fe045820d88b447a19aa5ffcabc4270dd38017bda068c9f84b6fb05cb0fee73261fbb777a166686173686564f44e6172626974726172792064617461584025b3ef85838d62f40eb3fe5b1ac7cf802ca4d076a07575572bc88601968bafa2b4aa106c8636cc93bd4337385527cb31194e65925062c59857d69fbccd4f3f01"
+
 ```
 
 Outputs:
@@ -67,7 +70,7 @@ Outputs:
 {
     'verified': True,
     'message': 'arbitrary data',
-    'signing_address': 'addr1v896758x5jv32tdzx5tl8hftasmxd8ydlqmtxwdrpqyv9wchg8mj2'
+    'signing_address': 'addr1v90vykgaft6lylq79u7uvxqc3hxmnf8tz7uyxael6gpz3lsfnggam'
 }
 ```
 
