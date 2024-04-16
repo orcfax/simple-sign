@@ -1,11 +1,11 @@
 .DEFAULT_GOAL := help
 
-.PHONY: clean package package-deps package-source package-upload package-wheel tar-source upgrade
+.PHONY: clean package package-deps package-source package-upload package-wheel tar-source upgrade docs
 
 tar-source: package-deps                                    ## Package repository as tar for easy distribution
 	rm -rf tar-src/
 	mkdir tar-src/
-	git-archive-all --prefix template/ tar-src/template-v0.0.0.tar.gz
+	git-archive-all --prefix simplep-sign/ tar-src/simple_sign-v0.0.0.tar.gz
 
 package-deps:                                               ## Upgrade dependencies for packaging
 	python3 -m pip install -U twine wheel build git-archive-all
