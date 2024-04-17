@@ -139,3 +139,4 @@ dmypy.json
 *signed.json
 *.addr
 *.cbor
+*.token
