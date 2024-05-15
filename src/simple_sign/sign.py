@@ -1,9 +1,4 @@
-"""Python template repository.
-
-Baseline template for future Python code related to this project.
-
-Replace this docstring and code below with your own code as required.
-"""
+"""Orcfax simple sign."""
 
 import argparse
 import logging
@@ -59,7 +54,7 @@ def signature_in_constitution_config():
     raise NotImplementedError("reading from config is not yet implemented")
 
 
-def sign_with_key(data: str, signing_key: str):
+def sign_with_key(data: str, signing_key: str) -> str:
     """Sign with an signing key."""
     skey = pyc.SigningKey.from_json(signing_key)
     vkey = pyc.VerificationKey.from_signing_key(skey)
@@ -67,12 +62,12 @@ def sign_with_key(data: str, signing_key: str):
     return pyc.sign(data, skey)
 
 
-def signing_handler(data: str, signing_key: str):
+def signing_handler(data: str, signing_key: str) -> str:
     """Handle signing functions."""
     return sign_with_key(data, signing_key)
 
 
-def verify_signature(data: str):
+def verify_signature(data: str) -> dict:
     """Verify a signature with an address."""
     try:
         status = pyc.verify(data)
@@ -93,7 +88,7 @@ def verify_signature(data: str):
     }
 
 
-def verify_handler(data: str):
+def verify_handler(data: str) -> dict:
     """Verify input data."""
     return verify_signature(data)
 
