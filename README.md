@@ -74,6 +74,36 @@ Outputs:
 }
 ```
 
+### Verification against a known set
+
+Simple Sign provides enough for most use cases to receive a CIP-8 message,
+check that it was signed, and then compare the signer's address against their
+own known list of notaries.
+
+To standardise the process Simple Sign will offer a number of helper functions.
+
+#### Notaries in an environment variable
+
+For a small number of notaries an environment variable may be sufficient. Use
+`CIP8_NOTARIES=` with comma separated list of Cardano addresses before
+invoking `signature_in_dapp_environment(pkey: str)` in your script.
+
+```env
+CIP8_NOTARIES=addr1...,addr2...,addr3...
+```
+
+Use `--list-env` or `-l` to display the contents of this variable locally:
+
+```sh
+python sign.py verify -
+```
+
+#### Other methods of checking signers
+
+A number of stubs have been left in the code that might provide methods such
+as checking against a UTxO or set of NFT holders in the future. These are yet
+to be implemented.
+
 ## Developer install
 
 ### pip
