@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
 <title>src.simple_sign.sign API documentation</title>
-<meta name="description" content="Python template repository …" />
+<meta name="description" content="Orcfax simple sign." />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
 <link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
@@ -22,22 +22,16 @@
 <h1 class="title">Module <code>src.simple_sign.sign</code></h1>
 </header>
 <section id="section-intro">
-<p>Python template repository.</p>
-<p>Baseline template for future Python code related to this project.</p>
-<p>Replace this docstring and code below with your own code as required.</p>
+<p>Orcfax simple sign.</p>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">&#34;&#34;&#34;Python template repository.
-
-Baseline template for future Python code related to this project.
-
-Replace this docstring and code below with your own code as required.
-&#34;&#34;&#34;
+<pre><code class="python">&#34;&#34;&#34;Orcfax simple sign.&#34;&#34;&#34;
 
 import argparse
 import logging
+import os
 import sys
 import time
 from typing import Final
@@ -69,6 +63,13 @@ logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
 
+KNOWN_SIGNERS_CONFIG: Final[str] = &#34;CIP8_NOTARIES&#34;
+
+
+class UnknownSigningKey(Exception):
+    &#34;&#34;&#34;Exception to raise when the signing key is unknown.&#34;&#34;&#34;
+
+
 def signature_in_license_pool():
     &#34;&#34;&#34;Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
@@ -83,14 +84,39 @@ def signature_in_constitution_datum_utxo():
     raise NotImplementedError(&#34;reading from datum is not yet implemented&#34;)
 
 
-def signature_in_constitution_config():
+def signature_in_constitution_config(pkey: str) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those listed in a
     configuration file.
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading from config is not yet implemented&#34;)
+    raise NotImplementedError(
+        &#34;reading from a constitution config is not yet implemented&#34;
+    )
 
 
-def sign_with_key(data: str, signing_key: str):
+def retrieve_env_notaries() -&gt; list:
+    &#34;&#34;&#34;Retrieve notaries from the environment.&#34;&#34;&#34;
+    notaries_env = os.getenv(KNOWN_SIGNERS_CONFIG, &#34;&#34;)
+    if not notaries_env:
+        return []
+    return [notary.strip() for notary in notaries_env.split(&#34;,&#34;)]
+
+
+def signature_in_dapp_environment(pkey: str) -&gt; bool:
+    &#34;&#34;&#34;Validate whether signing key matches one of those configured in
+    the environment of the dApp.
+
+    Largely a method for early prototyping. This isn&#39;t the most secure
+    approach to doing this and especially not for use in decentralized
+    systems. This check is only for projects with complete control over
+    their own project.
+    &#34;&#34;&#34;
+    notaries = retrieve_env_notaries()
+    if pkey.strip() not in notaries:
+        raise UnknownSigningKey(f&#34;{pkey} is an unknown key&#34;)
+    return True
+
+
+def sign_with_key(data: str, signing_key: str) -&gt; str:
     &#34;&#34;&#34;Sign with an signing key.&#34;&#34;&#34;
     skey = pyc.SigningKey.from_json(signing_key)
     vkey = pyc.VerificationKey.from_signing_key(skey)
@@ -98,12 +124,12 @@ def sign_with_key(data: str, signing_key: str):
     return pyc.sign(data, skey)
 
 
-def signing_handler(data: str, signing_key: str):
+def signing_handler(data: str, signing_key: str) -&gt; str:
     &#34;&#34;&#34;Handle signing functions.&#34;&#34;&#34;
     return sign_with_key(data, signing_key)
 
 
-def verify_signature(data: str):
+def verify_signature(data: str) -&gt; dict:
     &#34;&#34;&#34;Verify a signature with an address.&#34;&#34;&#34;
     try:
         status = pyc.verify(data)
@@ -124,7 +150,7 @@ def verify_signature(data: str):
     }
 
 
-def verify_handler(data: str):
+def verify_handler(data: str) -&gt; dict:
     &#34;&#34;&#34;Verify input data.&#34;&#34;&#34;
     return verify_signature(data)
 
@@ -153,6 +179,12 @@ def main() -&gt; None:
     sign = subparsers.add_parser(arg_sign)
     subparsers.add_parser(arg_version)
     verify.add_argument(&#34;-d&#34;, &#34;--data&#34;, type=str, help=&#34;data to verify&#34;)
+    verify.add_argument(
+        &#34;-l&#34;,
+        &#34;--list-env&#34;,
+        action=&#34;store_true&#34;,
+        help=f&#34;list known notaries in the environment at {KNOWN_SIGNERS_CONFIG}&#34;,
+    )
     sign.add_argument(&#34;-d&#34;, &#34;--data&#34;, type=str, help=&#34;data to sign&#34;)
     sign.add_argument(&#34;-s&#34;, &#34;--signing_key&#34;, type=str, help=&#34;signing key&#34;)
     args = parser.parse_args()
@@ -161,10 +193,19 @@ def main() -&gt; None:
         sys.exit()
     if args.cmd == arg_sign:
         print(signing_handler(args.data, args.signing_key))
-    if args.cmd == arg_verify:
+    if args.cmd == arg_verify and not args.list_env:
         print(verify_handler(args.data))
     if args.cmd == arg_version:
         print(f&#34;simple-sign version: {get_version()}&#34;)
+    if args.list_env:
+        notaries = retrieve_env_notaries()
+        if not notaries:
+            logger.info(
+                &#34;no environment notaries, ensuere &#39;%s&#39; is configured&#34;,
+                KNOWN_SIGNERS_CONFIG,
+            )
+            sys.exit()
+        print(notaries)
 
 
 if __name__ == &#34;__main__&#34;:
@@ -214,6 +255,12 @@ if __name__ == &#34;__main__&#34;:
     sign = subparsers.add_parser(arg_sign)
     subparsers.add_parser(arg_version)
     verify.add_argument(&#34;-d&#34;, &#34;--data&#34;, type=str, help=&#34;data to verify&#34;)
+    verify.add_argument(
+        &#34;-l&#34;,
+        &#34;--list-env&#34;,
+        action=&#34;store_true&#34;,
+        help=f&#34;list known notaries in the environment at {KNOWN_SIGNERS_CONFIG}&#34;,
+    )
     sign.add_argument(&#34;-d&#34;, &#34;--data&#34;, type=str, help=&#34;data to sign&#34;)
     sign.add_argument(&#34;-s&#34;, &#34;--signing_key&#34;, type=str, help=&#34;signing key&#34;)
     args = parser.parse_args()
@@ -222,14 +269,40 @@ if __name__ == &#34;__main__&#34;:
         sys.exit()
     if args.cmd == arg_sign:
         print(signing_handler(args.data, args.signing_key))
-    if args.cmd == arg_verify:
+    if args.cmd == arg_verify and not args.list_env:
         print(verify_handler(args.data))
     if args.cmd == arg_version:
-        print(f&#34;simple-sign version: {get_version()}&#34;)</code></pre>
+        print(f&#34;simple-sign version: {get_version()}&#34;)
+    if args.list_env:
+        notaries = retrieve_env_notaries()
+        if not notaries:
+            logger.info(
+                &#34;no environment notaries, ensuere &#39;%s&#39; is configured&#34;,
+                KNOWN_SIGNERS_CONFIG,
+            )
+            sys.exit()
+        print(notaries)</code></pre>
+</details>
+</dd>
+<dt id="src.simple_sign.sign.retrieve_env_notaries"><code class="name flex">
+<span>def <span class="ident">retrieve_env_notaries</span></span>(<span>) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve notaries from the environment.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def retrieve_env_notaries() -&gt; list:
+    &#34;&#34;&#34;Retrieve notaries from the environment.&#34;&#34;&#34;
+    notaries_env = os.getenv(KNOWN_SIGNERS_CONFIG, &#34;&#34;)
+    if not notaries_env:
+        return []
+    return [notary.strip() for notary in notaries_env.split(&#34;,&#34;)]</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.sign_with_key"><code class="name flex">
-<span>def <span class="ident">sign_with_key</span></span>(<span>data: str, signing_key: str)</span>
+<span>def <span class="ident">sign_with_key</span></span>(<span>data: str, signing_key: str) ‑> str</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Sign with an signing key.</p></div>
@@ -237,7 +310,7 @@ if __name__ == &#34;__main__&#34;:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def sign_with_key(data: str, signing_key: str):
+<pre><code class="python">def sign_with_key(data: str, signing_key: str) -&gt; str:
     &#34;&#34;&#34;Sign with an signing key.&#34;&#34;&#34;
     skey = pyc.SigningKey.from_json(signing_key)
     vkey = pyc.VerificationKey.from_signing_key(skey)
@@ -246,7 +319,7 @@ if __name__ == &#34;__main__&#34;:
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_constitution_config"><code class="name flex">
-<span>def <span class="ident">signature_in_constitution_config</span></span>(<span>)</span>
+<span>def <span class="ident">signature_in_constitution_config</span></span>(<span>pkey: str) ‑> bool</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Validate whether signing key matches one of those listed in a
@@ -255,11 +328,13 @@ configuration file.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def signature_in_constitution_config():
+<pre><code class="python">def signature_in_constitution_config(pkey: str) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those listed in a
     configuration file.
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading from config is not yet implemented&#34;)</code></pre>
+    raise NotImplementedError(
+        &#34;reading from a constitution config is not yet implemented&#34;
+    )</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_constitution_datum_utxo"><code class="name flex">
@@ -277,6 +352,35 @@ addresses in a given constitution UTxO.</p></div>
     addresses in a given constitution UTxO.
     &#34;&#34;&#34;
     raise NotImplementedError(&#34;reading from datum is not yet implemented&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.simple_sign.sign.signature_in_dapp_environment"><code class="name flex">
+<span>def <span class="ident">signature_in_dapp_environment</span></span>(<span>pkey: str) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Validate whether signing key matches one of those configured in
+the environment of the dApp.</p>
+<p>Largely a method for early prototyping. This isn't the most secure
+approach to doing this and especially not for use in decentralized
+systems. This check is only for projects with complete control over
+their own project.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def signature_in_dapp_environment(pkey: str) -&gt; bool:
+    &#34;&#34;&#34;Validate whether signing key matches one of those configured in
+    the environment of the dApp.
+
+    Largely a method for early prototyping. This isn&#39;t the most secure
+    approach to doing this and especially not for use in decentralized
+    systems. This check is only for projects with complete control over
+    their own project.
+    &#34;&#34;&#34;
+    notaries = retrieve_env_notaries()
+    if pkey.strip() not in notaries:
+        raise UnknownSigningKey(f&#34;{pkey} is an unknown key&#34;)
+    return True</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_license_pool"><code class="name flex">
@@ -297,7 +401,7 @@ licenses associated with the project and return True if so.</p></div>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signing_handler"><code class="name flex">
-<span>def <span class="ident">signing_handler</span></span>(<span>data: str, signing_key: str)</span>
+<span>def <span class="ident">signing_handler</span></span>(<span>data: str, signing_key: str) ‑> str</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Handle signing functions.</p></div>
@@ -305,13 +409,13 @@ licenses associated with the project and return True if so.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def signing_handler(data: str, signing_key: str):
+<pre><code class="python">def signing_handler(data: str, signing_key: str) -&gt; str:
     &#34;&#34;&#34;Handle signing functions.&#34;&#34;&#34;
     return sign_with_key(data, signing_key)</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.verify_handler"><code class="name flex">
-<span>def <span class="ident">verify_handler</span></span>(<span>data: str)</span>
+<span>def <span class="ident">verify_handler</span></span>(<span>data: str) ‑> dict</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Verify input data.</p></div>
@@ -319,13 +423,13 @@ licenses associated with the project and return True if so.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def verify_handler(data: str):
+<pre><code class="python">def verify_handler(data: str) -&gt; dict:
     &#34;&#34;&#34;Verify input data.&#34;&#34;&#34;
     return verify_signature(data)</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.verify_signature"><code class="name flex">
-<span>def <span class="ident">verify_signature</span></span>(<span>data: str)</span>
+<span>def <span class="ident">verify_signature</span></span>(<span>data: str) ‑> dict</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Verify a signature with an address.</p></div>
@@ -333,7 +437,7 @@ licenses associated with the project and return True if so.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def verify_signature(data: str):
+<pre><code class="python">def verify_signature(data: str) -&gt; dict:
     &#34;&#34;&#34;Verify a signature with an address.&#34;&#34;&#34;
     try:
         status = pyc.verify(data)
@@ -357,6 +461,28 @@ licenses associated with the project and return True if so.</p></div>
 </dl>
 </section>
 <section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="src.simple_sign.sign.UnknownSigningKey"><code class="flex name class">
+<span>class <span class="ident">UnknownSigningKey</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Exception to raise when the signing key is unknown.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class UnknownSigningKey(Exception):
+    &#34;&#34;&#34;Exception to raise when the signing key is unknown.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
+</dl>
 </section>
 </article>
 <nav id="sidebar">
@@ -373,13 +499,22 @@ licenses associated with the project and return True if so.</p></div>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="src.simple_sign.sign.main" href="#src.simple_sign.sign.main">main</a></code></li>
+<li><code><a title="src.simple_sign.sign.retrieve_env_notaries" href="#src.simple_sign.sign.retrieve_env_notaries">retrieve_env_notaries</a></code></li>
 <li><code><a title="src.simple_sign.sign.sign_with_key" href="#src.simple_sign.sign.sign_with_key">sign_with_key</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_constitution_config" href="#src.simple_sign.sign.signature_in_constitution_config">signature_in_constitution_config</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_constitution_datum_utxo" href="#src.simple_sign.sign.signature_in_constitution_datum_utxo">signature_in_constitution_datum_utxo</a></code></li>
+<li><code><a title="src.simple_sign.sign.signature_in_dapp_environment" href="#src.simple_sign.sign.signature_in_dapp_environment">signature_in_dapp_environment</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_license_pool" href="#src.simple_sign.sign.signature_in_license_pool">signature_in_license_pool</a></code></li>
 <li><code><a title="src.simple_sign.sign.signing_handler" href="#src.simple_sign.sign.signing_handler">signing_handler</a></code></li>
 <li><code><a title="src.simple_sign.sign.verify_handler" href="#src.simple_sign.sign.verify_handler">verify_handler</a></code></li>
 <li><code><a title="src.simple_sign.sign.verify_signature" href="#src.simple_sign.sign.verify_signature">verify_signature</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="src.simple_sign.sign.UnknownSigningKey" href="#src.simple_sign.sign.UnknownSigningKey">UnknownSigningKey</a></code></h4>
+</li>
 </ul>
 </li>
 </ul>
