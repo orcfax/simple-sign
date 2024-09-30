@@ -12,26 +12,26 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11"]
+        os: [ubuntu-latest, windows-latest, "macos-latest"]
+        python-version: ["3.10", "3.12"]
         experimental: [false]
-        # Include experimental or bleeding-edge releases.
-        # Windows is not included as it can be unreliable, e.g.
-        # psycopg2-binary is only released some time after a Python
-        # major/minor version is formally released.
-        #
-        # Uncomment below (including 'include:') when the next
-        # reasonable test candidate is made available:
         include:
-          #
           # Versions list: https://github.com/actions/python-versions/releases
-          # Example formatting: 3.11.0-alpha.1, 3.9.0-beta.8, 3.10.0-rc.3
-          #
+          # Example formatting: 3.11.0-alpha.1, 3.9.0-beta.8, 3.10.0-rc.3.
           - os: ubuntu-latest
-            python-version: "3.12.0"
+            python-version: "3.11.0"
+            experimental: true
+          - os: windows-latest
+            python-version: "3.11.0"
+            experimental: true
+          - os: ubuntu-latest
+            python-version: "3.13.0"
             experimental: true
           - os: macos-latest
-            python-version: "3.12.0"
+            python-version: "3.13.0"
+            experimental: true
+          - os: windows-latest
+            python-version: "3.13.0"
             experimental: true
     steps:
       - name: "check out repository"
