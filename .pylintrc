@@ -25,6 +25,7 @@ ignore-patterns=
     ^(.+).svg,
     ^(.+).env,
     ^\.,
+    ^justfile$,
 
 ignore-paths=
     requirements/.,
