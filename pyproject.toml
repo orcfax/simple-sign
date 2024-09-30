@@ -2,7 +2,7 @@
 
 name = "simple-sign"
 
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 
 description = "helper functions signing simple data using Cardano primitives"
 
@@ -10,7 +10,7 @@ readme = "README.md"
 
 requires-python = ">=3.10"
 
-keywords = ["cardano", "signing"]
+keywords = ["cardano", "signing", "cip-8"]
 
 authors = [
   {name = "R. Spencer", email = "ross@orcfax.io" },
@@ -24,12 +24,12 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3 :: Only",
 ]
 
-dependencies = [
-    "pycardano==0.10.0",
-]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements/requirements.txt"]}
 
 [project.urls]
 "Homepage" = "https://orcfax.io/"
