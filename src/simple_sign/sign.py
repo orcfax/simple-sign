@@ -41,6 +41,15 @@ class UnknownSigningKey(Exception):
     """Exception to raise when the signing key is unknown."""
 
 
+def signature_belongs_to_stake_pool():
+    """Validate whether the signing key belongs to a stake pool
+    associated with the dApp and return True if so.
+    """
+    raise NotImplementedError(
+        "verifying signature in stake pool is not yet implemented"
+    )
+
+
 def signature_in_license_pool():
     """Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
