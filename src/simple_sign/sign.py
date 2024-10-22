@@ -154,7 +154,6 @@ def main() -> None:
         epilog="for more information visit https://orcfax.io/",
     )
     subparsers = parser.add_subparsers(dest="cmd")
-    subparsers.add_parser(arg_sign)
     verify = subparsers.add_parser(arg_verify)
     sign = subparsers.add_parser(arg_sign)
     subparsers.add_parser(arg_version)
@@ -174,14 +173,17 @@ def main() -> None:
     if args.cmd == arg_sign:
         print(signing_handler(args.data, args.signing_key))
     if args.cmd == arg_verify and not args.list_env:
+        if not args.data:
+            logger.error("supply data with the `-d` flag")
+            sys.exit()
         print(verify_handler(args.data))
     if args.cmd == arg_version:
         print(f"simple-sign version: {get_version()}")
-    if args.list_env:
+    if args.cmd == "verify" and args.list_env:
         notaries = retrieve_env_notaries()
         if not notaries:
             logger.info(
-                "no environment notaries, ensuere '%s' is configured",
+                "no environment notaries, ensure '%s' is configured",
                 KNOWN_SIGNERS_CONFIG,
             )
             sys.exit()
