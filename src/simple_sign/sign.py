@@ -1,5 +1,7 @@
 """Orcfax simple sign."""
 
+# pylint: disable=W0613
+
 import argparse
 import logging
 import os
@@ -35,29 +37,47 @@ logger = logging.getLogger(__name__)
 
 
 KNOWN_SIGNERS_CONFIG: Final[str] = "CIP8_NOTARIES"
+KUPO_URL: Final[str] = "KUPO_URL_NOTARIES"
 
 
 class UnknownSigningKey(Exception):
     """Exception to raise when the signing key is unknown."""
 
 
-def signature_belongs_to_stake_pool():
-    """Validate whether the signing key belongs to a stake pool
-    associated with the dApp and return True if so.
+def retrieve_aliased(pkey: str) -> str:
+    """Retrieve another public key aliased by the given lookup.
+
+    The result might then be used to verify using one of the other
+    methods in this library, e.g.
+
+    1. lookup aliased staking key.
+    2. lookup staking key in license pool.
+    3. if not exists, raise exception, else, pass.
+
+    We want to do this on an address by address basis. The difficulty
+    is consistent parsing of metadata that allows this function to be
+    broadly applicable across functions.
     """
-    raise NotImplementedError(
-        "verifying signature in stake pool is not yet implemented"
-    )
+    raise NotImplementedError("reading staked values is not yet implemented")
 
 
-def signature_in_license_pool():
+def signature_belongs_to_staked_pool(
+    pkey: str, token_policy_id: str, min_stake: int
+) -> bool:
+    """Validate whether the signing key belongs to a someone who has
+    enough stake in a given token.
+    """
+    raise NotImplementedError("reading staked values is not yet implemented")
+
+
+def signature_in_license_pool(pkey: str, policy_id: str) -> bool:
     """Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
     """
     raise NotImplementedError("reading from license pool is not yet implemented")
 
 
-def signature_in_constitution_datum_utxo():
+def signature_in_constitution_datum_utxo(pkey: str) -> bool:
     """Validate whether signing key matches one of those a list of
     addresses in a given constitution UTxO.
     """
