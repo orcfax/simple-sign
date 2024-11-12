@@ -6,7 +6,7 @@ help:
 tar-source: package-deps
 	rm -rf tar-src/
 	mkdir tar-src/
-	git-archive-all --prefix simplep-sign/ tar-src/simple_sign-v0.0.0.tar.gz
+	git-archive-all --prefix simple-sign/ tar-src/simple_sign-v0.0.0.tar.gz
 
 ## Upgrade dependencies for packaging
 package-deps:
@@ -41,6 +41,7 @@ upgrade:
 
 ## Generate documentation
 docs:
+	rm -r docs/*
 	pdoc3 --force --html -o docs src/
 	mv docs/src/* docs/.
 	rm -r docs/src
