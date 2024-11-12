@@ -29,6 +29,8 @@
 </summary>
 <pre><code class="python">&#34;&#34;&#34;Orcfax simple sign.&#34;&#34;&#34;
 
+# pylint: disable=W0613
+
 import argparse
 import logging
 import os
@@ -64,20 +66,47 @@ logger = logging.getLogger(__name__)
 
 
 KNOWN_SIGNERS_CONFIG: Final[str] = &#34;CIP8_NOTARIES&#34;
+KUPO_URL: Final[str] = &#34;KUPO_URL_NOTARIES&#34;
 
 
 class UnknownSigningKey(Exception):
     &#34;&#34;&#34;Exception to raise when the signing key is unknown.&#34;&#34;&#34;
 
 
-def signature_in_license_pool():
+def retrieve_aliased(pkey: str) -&gt; str:
+    &#34;&#34;&#34;Retrieve another public key aliased by the given lookup.
+
+    The result might then be used to verify using one of the other
+    methods in this library, e.g.
+
+    1. lookup aliased staking key.
+    2. lookup staking key in license pool.
+    3. if not exists, raise exception, else, pass.
+
+    We want to do this on an address by address basis. The difficulty
+    is consistent parsing of metadata that allows this function to be
+    broadly applicable across functions.
+    &#34;&#34;&#34;
+    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)
+
+
+def signature_belongs_to_staked_pool(
+    pkey: str, token_policy_id: str, min_stake: int
+) -&gt; bool:
+    &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
+    enough stake in a given token.
+    &#34;&#34;&#34;
+    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)
+
+
+def signature_in_license_pool(pkey: str, policy_id: str) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
     &#34;&#34;&#34;
     raise NotImplementedError(&#34;reading from license pool is not yet implemented&#34;)
 
 
-def signature_in_constitution_datum_utxo():
+def signature_in_constitution_datum_utxo(pkey: str) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those a list of
     addresses in a given constitution UTxO.
     &#34;&#34;&#34;
@@ -174,7 +203,6 @@ def main() -&gt; None:
         epilog=&#34;for more information visit https://orcfax.io/&#34;,
     )
     subparsers = parser.add_subparsers(dest=&#34;cmd&#34;)
-    subparsers.add_parser(arg_sign)
     verify = subparsers.add_parser(arg_verify)
     sign = subparsers.add_parser(arg_sign)
     subparsers.add_parser(arg_version)
@@ -194,14 +222,17 @@ def main() -&gt; None:
     if args.cmd == arg_sign:
         print(signing_handler(args.data, args.signing_key))
     if args.cmd == arg_verify and not args.list_env:
+        if not args.data:
+            logger.error(&#34;supply data with the `-d` flag&#34;)
+            sys.exit()
         print(verify_handler(args.data))
     if args.cmd == arg_version:
         print(f&#34;simple-sign version: {get_version()}&#34;)
-    if args.list_env:
+    if args.cmd == &#34;verify&#34; and args.list_env:
         notaries = retrieve_env_notaries()
         if not notaries:
             logger.info(
-                &#34;no environment notaries, ensuere &#39;%s&#39; is configured&#34;,
+                &#34;no environment notaries, ensure &#39;%s&#39; is configured&#34;,
                 KNOWN_SIGNERS_CONFIG,
             )
             sys.exit()
@@ -250,7 +281,6 @@ if __name__ == &#34;__main__&#34;:
         epilog=&#34;for more information visit https://orcfax.io/&#34;,
     )
     subparsers = parser.add_subparsers(dest=&#34;cmd&#34;)
-    subparsers.add_parser(arg_sign)
     verify = subparsers.add_parser(arg_verify)
     sign = subparsers.add_parser(arg_sign)
     subparsers.add_parser(arg_version)
@@ -270,18 +300,57 @@ if __name__ == &#34;__main__&#34;:
     if args.cmd == arg_sign:
         print(signing_handler(args.data, args.signing_key))
     if args.cmd == arg_verify and not args.list_env:
+        if not args.data:
+            logger.error(&#34;supply data with the `-d` flag&#34;)
+            sys.exit()
         print(verify_handler(args.data))
     if args.cmd == arg_version:
         print(f&#34;simple-sign version: {get_version()}&#34;)
-    if args.list_env:
+    if args.cmd == &#34;verify&#34; and args.list_env:
         notaries = retrieve_env_notaries()
         if not notaries:
             logger.info(
-                &#34;no environment notaries, ensuere &#39;%s&#39; is configured&#34;,
+                &#34;no environment notaries, ensure &#39;%s&#39; is configured&#34;,
                 KNOWN_SIGNERS_CONFIG,
             )
             sys.exit()
         print(notaries)</code></pre>
+</details>
+</dd>
+<dt id="src.simple_sign.sign.retrieve_aliased"><code class="name flex">
+<span>def <span class="ident">retrieve_aliased</span></span>(<span>pkey: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve another public key aliased by the given lookup.</p>
+<p>The result might then be used to verify using one of the other
+methods in this library, e.g.</p>
+<ol>
+<li>lookup aliased staking key.</li>
+<li>lookup staking key in license pool.</li>
+<li>if not exists, raise exception, else, pass.</li>
+</ol>
+<p>We want to do this on an address by address basis. The difficulty
+is consistent parsing of metadata that allows this function to be
+broadly applicable across functions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def retrieve_aliased(pkey: str) -&gt; str:
+    &#34;&#34;&#34;Retrieve another public key aliased by the given lookup.
+
+    The result might then be used to verify using one of the other
+    methods in this library, e.g.
+
+    1. lookup aliased staking key.
+    2. lookup staking key in license pool.
+    3. if not exists, raise exception, else, pass.
+
+    We want to do this on an address by address basis. The difficulty
+    is consistent parsing of metadata that allows this function to be
+    broadly applicable across functions.
+    &#34;&#34;&#34;
+    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.retrieve_env_notaries"><code class="name flex">
@@ -318,6 +387,25 @@ if __name__ == &#34;__main__&#34;:
     return pyc.sign(data, skey)</code></pre>
 </details>
 </dd>
+<dt id="src.simple_sign.sign.signature_belongs_to_staked_pool"><code class="name flex">
+<span>def <span class="ident">signature_belongs_to_staked_pool</span></span>(<span>pkey: str, token_policy_id: str, min_stake: int) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Validate whether the signing key belongs to a someone who has
+enough stake in a given token.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def signature_belongs_to_staked_pool(
+    pkey: str, token_policy_id: str, min_stake: int
+) -&gt; bool:
+    &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
+    enough stake in a given token.
+    &#34;&#34;&#34;
+    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)</code></pre>
+</details>
+</dd>
 <dt id="src.simple_sign.sign.signature_in_constitution_config"><code class="name flex">
 <span>def <span class="ident">signature_in_constitution_config</span></span>(<span>pkey: str) ‑> bool</span>
 </code></dt>
@@ -338,7 +426,7 @@ configuration file.</p></div>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_constitution_datum_utxo"><code class="name flex">
-<span>def <span class="ident">signature_in_constitution_datum_utxo</span></span>(<span>)</span>
+<span>def <span class="ident">signature_in_constitution_datum_utxo</span></span>(<span>pkey: str) ‑> bool</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Validate whether signing key matches one of those a list of
@@ -347,7 +435,7 @@ addresses in a given constitution UTxO.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def signature_in_constitution_datum_utxo():
+<pre><code class="python">def signature_in_constitution_datum_utxo(pkey: str) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those a list of
     addresses in a given constitution UTxO.
     &#34;&#34;&#34;
@@ -384,7 +472,7 @@ their own project.</p></div>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_license_pool"><code class="name flex">
-<span>def <span class="ident">signature_in_license_pool</span></span>(<span>)</span>
+<span>def <span class="ident">signature_in_license_pool</span></span>(<span>pkey: str, policy_id: str) ‑> bool</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Validate whether signing key matches one of those in a pool of
@@ -393,7 +481,7 @@ licenses associated with the project and return True if so.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def signature_in_license_pool():
+<pre><code class="python">def signature_in_license_pool(pkey: str, policy_id: str) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
     &#34;&#34;&#34;
@@ -499,8 +587,10 @@ licenses associated with the project and return True if so.</p></div>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="src.simple_sign.sign.main" href="#src.simple_sign.sign.main">main</a></code></li>
+<li><code><a title="src.simple_sign.sign.retrieve_aliased" href="#src.simple_sign.sign.retrieve_aliased">retrieve_aliased</a></code></li>
 <li><code><a title="src.simple_sign.sign.retrieve_env_notaries" href="#src.simple_sign.sign.retrieve_env_notaries">retrieve_env_notaries</a></code></li>
 <li><code><a title="src.simple_sign.sign.sign_with_key" href="#src.simple_sign.sign.sign_with_key">sign_with_key</a></code></li>
+<li><code><a title="src.simple_sign.sign.signature_belongs_to_staked_pool" href="#src.simple_sign.sign.signature_belongs_to_staked_pool">signature_belongs_to_staked_pool</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_constitution_config" href="#src.simple_sign.sign.signature_in_constitution_config">signature_in_constitution_config</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_constitution_datum_utxo" href="#src.simple_sign.sign.signature_in_constitution_datum_utxo">signature_in_constitution_datum_utxo</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_dapp_environment" href="#src.simple_sign.sign.signature_in_dapp_environment">signature_in_dapp_environment</a></code></li>
