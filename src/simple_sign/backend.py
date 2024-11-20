@@ -9,7 +9,7 @@ useful/interesting concept.
 
 import logging
 from dataclasses import dataclass
-from typing import Callable, Final
+from typing import Callable, Final, Optional
 
 import cachetools.func
 import pycardano as pyc
@@ -73,7 +73,7 @@ class BackendContext:
         raise NotImplementedError()
 
     def retrieve_nft_holders(
-        self, policy: str, deny_list: list, seek_addr: str = None
+        self, policy: str, deny_list: list, addr: str = None
     ) -> list:
         """Retrieve a list of NFT holders, e.g. a license to operate
         a decentralized node.
@@ -81,7 +81,7 @@ class BackendContext:
         raise NotImplementedError()
 
     def retrieve_metadata(
-        self, value: int, policy: str, tag: str, callback: Callable = None
+        self, value: int, policy: str, tag: str, callback: Optional[Callable | None]
     ) -> list:
         """Retrieve metadata from the backend."""
         raise NotImplementedError()
@@ -100,20 +100,25 @@ class KupoContext(BackendContext):
         self._port = port
 
     @cachetools.func.ttl_cache(ttl=60)
-    def _retrieve_unspent_utxos(self, addr: str = "") -> dict:
+    def _retrieve_unspent_utxos(self, addr: str = None) -> dict:
         """Retrieve unspent utxos from Kupo.
 
-        NB. Kupo must be configured to capture sparingly.
+        NB. Kupo must be configured to capture sparingly, i.e. the
+        policies and addresses it is watching and slot from which it is
+        watching must be as specific as possible for this function to
+        perform well.
         """
-        if not addr:
-            resp = requests.get(
-                f"{self._base_url}:{self._port}/matches?unspent", timeout=30
-            )
-            return resp.json()
-        resp = requests.get(
-            f"{self._base_url}:{self._port}/matches/{addr}?unspent", timeout=30
-        )
-        return resp.json()
+        kupo_err: Final[str] = "hint"
+        request_string = f"{self._base_url}:{self._port}/matches?unspent"
+        if addr:
+            request_string = f"{self._base_url}:{self._port}/matches/{addr}?unspent"
+        logger.info("requesting unspent: '%s'", request_string)
+        resp = requests.get(request_string, timeout=30)
+        ret = resp.json()
+        if kupo_err in ret:
+            logger.error("unable to retrieve data due to Kupo request error: %s", ret)
+            return []
+        return ret
 
     def _retrieve_metadata(self, tag: str, tx_list: list[ValidTx]):
         """Return metadata based on slot and transaction ID. This is
@@ -145,17 +150,18 @@ class KupoContext(BackendContext):
             md_list.append(md_dict[0])
         return md_list
 
-    def retrieve_staked_holders(self, token_policy: str, seek_addr: str = None) -> list:
+    def retrieve_staked_holders(self, token_policy: str, addr: str = None) -> list:
         """Retrieve a list of staked holders against a given CNT."""
         unspent = self._retrieve_unspent_utxos()
         addresses_with_fact = {}
         for item in unspent:
-            addr = item["address"]
-            if seek_addr and addr != seek_addr:
+            unspent_addr = item["address"]
+            unspent_staking = _get_staking_from_addr(unspent_addr)
+            if addr and addr not in (unspent_addr, unspent_staking):
                 # don't process further than we have to if we're only
                 # looking for a single address.
                 continue
-            staking = _get_staking_from_addr(addr)
+            staking = unspent_staking
             assets = item["value"]["assets"]
             for key, value in assets.items():
                 if token_policy in key:
@@ -163,7 +169,7 @@ class KupoContext(BackendContext):
         return addresses_with_fact
 
     def retrieve_nft_holders(
-        self, policy: str, deny_list: list = None, seek_addr: str = None
+        self, policy: str, deny_list: list = None, addr: str = None
     ) -> list:
         """Retrieve a list of NFT holders, e.g. a license to operate
         a decentralized node.
@@ -172,17 +178,21 @@ class KupoContext(BackendContext):
         to remove some results that are unhelpful, e.g. the minting
         address if desired.
         """
-        unspent = self._retrieve_unspent_utxos()
+        if addr:
+            unspent = self._retrieve_unspent_utxos(addr)
+        else:
+            unspent = self._retrieve_unspent_utxos()
         holders = {}
         for item in unspent:
-            addr = item["address"]
-            if seek_addr and addr != seek_addr:
+            unspent_addr = item["address"]
+            unspent_staking = _get_staking_from_addr(unspent_addr)
+            if addr and addr not in (unspent_addr, unspent_staking):
                 # don't process further than we have to if we're only
                 # looking for a single address.
                 continue
-            staking = _get_staking_from_addr(addr)
-            if addr in deny_list:
+            if deny_list and unspent_addr in deny_list:
                 continue
+            staking = unspent_staking
             assets = item["value"]["assets"]
             for key, _ in assets.items():
                 if not key.startswith(policy):
@@ -195,6 +205,7 @@ class KupoContext(BackendContext):
         """Retrieve a list of valid transactions according to our
         policy rules.
         """
+        logger.info("getting valid txs for policy: '%s'", policy)
         valid_txs = []
         if not unspent:
             return valid_txs
@@ -206,7 +217,6 @@ class KupoContext(BackendContext):
             for asset in assets:
                 if policy not in asset:
                     continue
-                logger.error(policy)
                 slot = item["created_at"]["slot_no"]
                 tx_id = item["transaction_id"]
                 address = item["address"]
@@ -225,7 +235,7 @@ class KupoContext(BackendContext):
         value: int,
         policy: str,
         tag: str,
-        callback: Callable = None,
+        callback: Optional[Callable | None],
     ) -> list:
         """Retrieve a list of aliased signing addresses. An aliased
         signing address is an address that has been setup using a
