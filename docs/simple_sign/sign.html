@@ -90,7 +90,7 @@ def retrieve_aliased(pkey: str) -&gt; str:
     raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)
 
 
-def signature_belongs_to_staked_pool(
+def signature_in_staked_pool(
     pkey: str, token_policy_id: str, min_stake: int
 ) -&gt; bool:
     &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
@@ -387,25 +387,6 @@ broadly applicable across functions.</p></div>
     return pyc.sign(data, skey)</code></pre>
 </details>
 </dd>
-<dt id="src.simple_sign.sign.signature_belongs_to_staked_pool"><code class="name flex">
-<span>def <span class="ident">signature_belongs_to_staked_pool</span></span>(<span>pkey: str, token_policy_id: str, min_stake: int) ‑> bool</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Validate whether the signing key belongs to a someone who has
-enough stake in a given token.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def signature_belongs_to_staked_pool(
-    pkey: str, token_policy_id: str, min_stake: int
-) -&gt; bool:
-    &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
-    enough stake in a given token.
-    &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)</code></pre>
-</details>
-</dd>
 <dt id="src.simple_sign.sign.signature_in_constitution_config"><code class="name flex">
 <span>def <span class="ident">signature_in_constitution_config</span></span>(<span>pkey: str) ‑> bool</span>
 </code></dt>
@@ -486,6 +467,25 @@ licenses associated with the project and return True if so.</p></div>
     licenses associated with the project and return True if so.
     &#34;&#34;&#34;
     raise NotImplementedError(&#34;reading from license pool is not yet implemented&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.simple_sign.sign.signature_in_staked_pool"><code class="name flex">
+<span>def <span class="ident">signature_in_staked_pool</span></span>(<span>pkey: str, token_policy_id: str, min_stake: int) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Validate whether the signing key belongs to a someone who has
+enough stake in a given token.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def signature_in_staked_pool(
+    pkey: str, token_policy_id: str, min_stake: int
+) -&gt; bool:
+    &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
+    enough stake in a given token.
+    &#34;&#34;&#34;
+    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signing_handler"><code class="name flex">
@@ -590,11 +590,11 @@ licenses associated with the project and return True if so.</p></div>
 <li><code><a title="src.simple_sign.sign.retrieve_aliased" href="#src.simple_sign.sign.retrieve_aliased">retrieve_aliased</a></code></li>
 <li><code><a title="src.simple_sign.sign.retrieve_env_notaries" href="#src.simple_sign.sign.retrieve_env_notaries">retrieve_env_notaries</a></code></li>
 <li><code><a title="src.simple_sign.sign.sign_with_key" href="#src.simple_sign.sign.sign_with_key">sign_with_key</a></code></li>
-<li><code><a title="src.simple_sign.sign.signature_belongs_to_staked_pool" href="#src.simple_sign.sign.signature_belongs_to_staked_pool">signature_belongs_to_staked_pool</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_constitution_config" href="#src.simple_sign.sign.signature_in_constitution_config">signature_in_constitution_config</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_constitution_datum_utxo" href="#src.simple_sign.sign.signature_in_constitution_datum_utxo">signature_in_constitution_datum_utxo</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_dapp_environment" href="#src.simple_sign.sign.signature_in_dapp_environment">signature_in_dapp_environment</a></code></li>
 <li><code><a title="src.simple_sign.sign.signature_in_license_pool" href="#src.simple_sign.sign.signature_in_license_pool">signature_in_license_pool</a></code></li>
+<li><code><a title="src.simple_sign.sign.signature_in_staked_pool" href="#src.simple_sign.sign.signature_in_staked_pool">signature_in_staked_pool</a></code></li>
 <li><code><a title="src.simple_sign.sign.signing_handler" href="#src.simple_sign.sign.signing_handler">signing_handler</a></code></li>
 <li><code><a title="src.simple_sign.sign.verify_handler" href="#src.simple_sign.sign.verify_handler">verify_handler</a></code></li>
 <li><code><a title="src.simple_sign.sign.verify_signature" href="#src.simple_sign.sign.verify_signature">verify_signature</a></code></li>

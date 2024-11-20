@@ -61,9 +61,7 @@ def retrieve_aliased(pkey: str) -> str:
     raise NotImplementedError("reading staked values is not yet implemented")
 
 
-def signature_belongs_to_staked_pool(
-    pkey: str, token_policy_id: str, min_stake: int
-) -> bool:
+def signature_in_staked_pool(pkey: str, token_policy_id: str, min_stake: int) -> bool:
     """Validate whether the signing key belongs to a someone who has
     enough stake in a given token.
     """
