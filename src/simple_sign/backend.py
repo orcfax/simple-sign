@@ -30,6 +30,26 @@ logger = logging.getLogger(__name__)
 BACKENDS: Final[list] = ["kupo"]
 
 
+def _check_bech32_prefix(addr: str) -> bool:
+    """Enable quick removal of pre-Shelly addresses.
+
+    The assumption in this library is that messages will be signed
+    using a Bech32 encoding and in the short term, there is only
+    support for `addr` and `stake`. Others might be needed and so we
+    wrap this capability in this function.
+
+    The full list of prefixes is here:
+
+     * https://github.com/cardano-foundation/CIPs/tree/master/CIP-0005#specification
+
+    """
+    if addr.strip().startswith("addr"):
+        return True
+    if addr.strip().startswith("stake"):
+        return True
+    return False
+
+
 def _sum_dict(key: str, value: int, accumulator: dict):
     """Increment values in a given dictionary"""
     if key not in accumulator:
@@ -156,6 +176,8 @@ class KupoContext(BackendContext):
         addresses_with_fact = {}
         for item in unspent:
             unspent_addr = item["address"]
+            if not _check_bech32_prefix(unspent_addr):
+                continue
             unspent_staking = _get_staking_from_addr(unspent_addr)
             if addr and addr not in (unspent_addr, unspent_staking):
                 # don't process further than we have to if we're only
@@ -185,6 +207,8 @@ class KupoContext(BackendContext):
         holders = {}
         for item in unspent:
             unspent_addr = item["address"]
+            if not _check_bech32_prefix(unspent_addr):
+                continue
             unspent_staking = _get_staking_from_addr(unspent_addr)
             if addr and addr not in (unspent_addr, unspent_staking):
                 # don't process further than we have to if we're only
