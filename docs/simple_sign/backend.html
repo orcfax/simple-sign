@@ -43,7 +43,7 @@ useful/interesting concept.
 
 import logging
 from dataclasses import dataclass
-from typing import Callable, Final
+from typing import Callable, Final, Optional
 
 import cachetools.func
 import pycardano as pyc
@@ -107,7 +107,7 @@ class BackendContext:
         raise NotImplementedError()
 
     def retrieve_nft_holders(
-        self, policy: str, deny_list: list, seek_addr: str = None
+        self, policy: str, deny_list: list, addr: str = None
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of NFT holders, e.g. a license to operate
         a decentralized node.
@@ -115,7 +115,7 @@ class BackendContext:
         raise NotImplementedError()
 
     def retrieve_metadata(
-        self, value: int, policy: str, tag: str, callback: Callable = None
+        self, value: int, policy: str, tag: str, callback: Optional[Callable | None]
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve metadata from the backend.&#34;&#34;&#34;
         raise NotImplementedError()
@@ -134,20 +134,25 @@ class KupoContext(BackendContext):
         self._port = port
 
     @cachetools.func.ttl_cache(ttl=60)
-    def _retrieve_unspent_utxos(self, addr: str = &#34;&#34;) -&gt; dict:
+    def _retrieve_unspent_utxos(self, addr: str = None) -&gt; dict:
         &#34;&#34;&#34;Retrieve unspent utxos from Kupo.
 
-        NB. Kupo must be configured to capture sparingly.
+        NB. Kupo must be configured to capture sparingly, i.e. the
+        policies and addresses it is watching and slot from which it is
+        watching must be as specific as possible for this function to
+        perform well.
         &#34;&#34;&#34;
-        if not addr:
-            resp = requests.get(
-                f&#34;{self._base_url}:{self._port}/matches?unspent&#34;, timeout=30
-            )
-            return resp.json()
-        resp = requests.get(
-            f&#34;{self._base_url}:{self._port}/matches/{addr}?unspent&#34;, timeout=30
-        )
-        return resp.json()
+        kupo_err: Final[str] = &#34;hint&#34;
+        request_string = f&#34;{self._base_url}:{self._port}/matches?unspent&#34;
+        if addr:
+            request_string = f&#34;{self._base_url}:{self._port}/matches/{addr}?unspent&#34;
+        logger.info(&#34;requesting unspent: &#39;%s&#39;&#34;, request_string)
+        resp = requests.get(request_string, timeout=30)
+        ret = resp.json()
+        if kupo_err in ret:
+            logger.error(&#34;unable to retrieve data due to Kupo request error: %s&#34;, ret)
+            return []
+        return ret
 
     def _retrieve_metadata(self, tag: str, tx_list: list[ValidTx]):
         &#34;&#34;&#34;Return metadata based on slot and transaction ID. This is
@@ -179,17 +184,18 @@ class KupoContext(BackendContext):
             md_list.append(md_dict[0])
         return md_list
 
-    def retrieve_staked_holders(self, token_policy: str, seek_addr: str = None) -&gt; list:
+    def retrieve_staked_holders(self, token_policy: str, addr: str = None) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of staked holders against a given CNT.&#34;&#34;&#34;
         unspent = self._retrieve_unspent_utxos()
         addresses_with_fact = {}
         for item in unspent:
-            addr = item[&#34;address&#34;]
-            if seek_addr and addr != seek_addr:
+            unspent_addr = item[&#34;address&#34;]
+            unspent_staking = _get_staking_from_addr(unspent_addr)
+            if addr and addr not in (unspent_addr, unspent_staking):
                 # don&#39;t process further than we have to if we&#39;re only
                 # looking for a single address.
                 continue
-            staking = _get_staking_from_addr(addr)
+            staking = unspent_staking
             assets = item[&#34;value&#34;][&#34;assets&#34;]
             for key, value in assets.items():
                 if token_policy in key:
@@ -197,7 +203,7 @@ class KupoContext(BackendContext):
         return addresses_with_fact
 
     def retrieve_nft_holders(
-        self, policy: str, deny_list: list = None, seek_addr: str = None
+        self, policy: str, deny_list: list = None, addr: str = None
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of NFT holders, e.g. a license to operate
         a decentralized node.
@@ -206,17 +212,21 @@ class KupoContext(BackendContext):
         to remove some results that are unhelpful, e.g. the minting
         address if desired.
         &#34;&#34;&#34;
-        unspent = self._retrieve_unspent_utxos()
+        if addr:
+            unspent = self._retrieve_unspent_utxos(addr)
+        else:
+            unspent = self._retrieve_unspent_utxos()
         holders = {}
         for item in unspent:
-            addr = item[&#34;address&#34;]
-            if seek_addr and addr != seek_addr:
+            unspent_addr = item[&#34;address&#34;]
+            unspent_staking = _get_staking_from_addr(unspent_addr)
+            if addr and addr not in (unspent_addr, unspent_staking):
                 # don&#39;t process further than we have to if we&#39;re only
                 # looking for a single address.
                 continue
-            staking = _get_staking_from_addr(addr)
-            if addr in deny_list:
+            if deny_list and unspent_addr in deny_list:
                 continue
+            staking = unspent_staking
             assets = item[&#34;value&#34;][&#34;assets&#34;]
             for key, _ in assets.items():
                 if not key.startswith(policy):
@@ -229,6 +239,7 @@ class KupoContext(BackendContext):
         &#34;&#34;&#34;Retrieve a list of valid transactions according to our
         policy rules.
         &#34;&#34;&#34;
+        logger.info(&#34;getting valid txs for policy: &#39;%s&#39;&#34;, policy)
         valid_txs = []
         if not unspent:
             return valid_txs
@@ -240,7 +251,6 @@ class KupoContext(BackendContext):
             for asset in assets:
                 if policy not in asset:
                     continue
-                logger.error(policy)
                 slot = item[&#34;created_at&#34;][&#34;slot_no&#34;]
                 tx_id = item[&#34;transaction_id&#34;]
                 address = item[&#34;address&#34;]
@@ -259,7 +269,7 @@ class KupoContext(BackendContext):
         value: int,
         policy: str,
         tag: str,
-        callback: Callable = None,
+        callback: Optional[Callable | None],
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of aliased signing addresses. An aliased
         signing address is an address that has been setup using a
@@ -336,7 +346,7 @@ sort of thing, but lets see. Learning from PyCardano.</p></div>
         raise NotImplementedError()
 
     def retrieve_nft_holders(
-        self, policy: str, deny_list: list, seek_addr: str = None
+        self, policy: str, deny_list: list, addr: str = None
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of NFT holders, e.g. a license to operate
         a decentralized node.
@@ -344,7 +354,7 @@ sort of thing, but lets see. Learning from PyCardano.</p></div>
         raise NotImplementedError()
 
     def retrieve_metadata(
-        self, value: int, policy: str, tag: str, callback: Callable = None
+        self, value: int, policy: str, tag: str, callback: Optional[Callable | None]
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve metadata from the backend.&#34;&#34;&#34;
         raise NotImplementedError()</code></pre>
@@ -356,7 +366,7 @@ sort of thing, but lets see. Learning from PyCardano.</p></div>
 <h3>Methods</h3>
 <dl>
 <dt id="src.simple_sign.backend.BackendContext.retrieve_metadata"><code class="name flex">
-<span>def <span class="ident">retrieve_metadata</span></span>(<span>self, value: int, policy: str, tag: str, callback: Callable = None) ‑> list</span>
+<span>def <span class="ident">retrieve_metadata</span></span>(<span>self, value: int, policy: str, tag: str, callback: Optional[Callable]) ‑> list</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Retrieve metadata from the backend.</p></div>
@@ -365,14 +375,14 @@ sort of thing, but lets see. Learning from PyCardano.</p></div>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def retrieve_metadata(
-    self, value: int, policy: str, tag: str, callback: Callable = None
+    self, value: int, policy: str, tag: str, callback: Optional[Callable | None]
 ) -&gt; list:
     &#34;&#34;&#34;Retrieve metadata from the backend.&#34;&#34;&#34;
     raise NotImplementedError()</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.backend.BackendContext.retrieve_nft_holders"><code class="name flex">
-<span>def <span class="ident">retrieve_nft_holders</span></span>(<span>self, policy: str, deny_list: list, seek_addr: str = None) ‑> list</span>
+<span>def <span class="ident">retrieve_nft_holders</span></span>(<span>self, policy: str, deny_list: list, addr: str = None) ‑> list</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Retrieve a list of NFT holders, e.g. a license to operate
@@ -382,7 +392,7 @@ a decentralized node.</p></div>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def retrieve_nft_holders(
-    self, policy: str, deny_list: list, seek_addr: str = None
+    self, policy: str, deny_list: list, addr: str = None
 ) -&gt; list:
     &#34;&#34;&#34;Retrieve a list of NFT holders, e.g. a license to operate
     a decentralized node.
@@ -430,20 +440,25 @@ a decentralized node.</p></div>
         self._port = port
 
     @cachetools.func.ttl_cache(ttl=60)
-    def _retrieve_unspent_utxos(self, addr: str = &#34;&#34;) -&gt; dict:
+    def _retrieve_unspent_utxos(self, addr: str = None) -&gt; dict:
         &#34;&#34;&#34;Retrieve unspent utxos from Kupo.
 
-        NB. Kupo must be configured to capture sparingly.
+        NB. Kupo must be configured to capture sparingly, i.e. the
+        policies and addresses it is watching and slot from which it is
+        watching must be as specific as possible for this function to
+        perform well.
         &#34;&#34;&#34;
-        if not addr:
-            resp = requests.get(
-                f&#34;{self._base_url}:{self._port}/matches?unspent&#34;, timeout=30
-            )
-            return resp.json()
-        resp = requests.get(
-            f&#34;{self._base_url}:{self._port}/matches/{addr}?unspent&#34;, timeout=30
-        )
-        return resp.json()
+        kupo_err: Final[str] = &#34;hint&#34;
+        request_string = f&#34;{self._base_url}:{self._port}/matches?unspent&#34;
+        if addr:
+            request_string = f&#34;{self._base_url}:{self._port}/matches/{addr}?unspent&#34;
+        logger.info(&#34;requesting unspent: &#39;%s&#39;&#34;, request_string)
+        resp = requests.get(request_string, timeout=30)
+        ret = resp.json()
+        if kupo_err in ret:
+            logger.error(&#34;unable to retrieve data due to Kupo request error: %s&#34;, ret)
+            return []
+        return ret
 
     def _retrieve_metadata(self, tag: str, tx_list: list[ValidTx]):
         &#34;&#34;&#34;Return metadata based on slot and transaction ID. This is
@@ -475,17 +490,18 @@ a decentralized node.</p></div>
             md_list.append(md_dict[0])
         return md_list
 
-    def retrieve_staked_holders(self, token_policy: str, seek_addr: str = None) -&gt; list:
+    def retrieve_staked_holders(self, token_policy: str, addr: str = None) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of staked holders against a given CNT.&#34;&#34;&#34;
         unspent = self._retrieve_unspent_utxos()
         addresses_with_fact = {}
         for item in unspent:
-            addr = item[&#34;address&#34;]
-            if seek_addr and addr != seek_addr:
+            unspent_addr = item[&#34;address&#34;]
+            unspent_staking = _get_staking_from_addr(unspent_addr)
+            if addr and addr not in (unspent_addr, unspent_staking):
                 # don&#39;t process further than we have to if we&#39;re only
                 # looking for a single address.
                 continue
-            staking = _get_staking_from_addr(addr)
+            staking = unspent_staking
             assets = item[&#34;value&#34;][&#34;assets&#34;]
             for key, value in assets.items():
                 if token_policy in key:
@@ -493,7 +509,7 @@ a decentralized node.</p></div>
         return addresses_with_fact
 
     def retrieve_nft_holders(
-        self, policy: str, deny_list: list = None, seek_addr: str = None
+        self, policy: str, deny_list: list = None, addr: str = None
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of NFT holders, e.g. a license to operate
         a decentralized node.
@@ -502,17 +518,21 @@ a decentralized node.</p></div>
         to remove some results that are unhelpful, e.g. the minting
         address if desired.
         &#34;&#34;&#34;
-        unspent = self._retrieve_unspent_utxos()
+        if addr:
+            unspent = self._retrieve_unspent_utxos(addr)
+        else:
+            unspent = self._retrieve_unspent_utxos()
         holders = {}
         for item in unspent:
-            addr = item[&#34;address&#34;]
-            if seek_addr and addr != seek_addr:
+            unspent_addr = item[&#34;address&#34;]
+            unspent_staking = _get_staking_from_addr(unspent_addr)
+            if addr and addr not in (unspent_addr, unspent_staking):
                 # don&#39;t process further than we have to if we&#39;re only
                 # looking for a single address.
                 continue
-            staking = _get_staking_from_addr(addr)
-            if addr in deny_list:
+            if deny_list and unspent_addr in deny_list:
                 continue
+            staking = unspent_staking
             assets = item[&#34;value&#34;][&#34;assets&#34;]
             for key, _ in assets.items():
                 if not key.startswith(policy):
@@ -525,6 +545,7 @@ a decentralized node.</p></div>
         &#34;&#34;&#34;Retrieve a list of valid transactions according to our
         policy rules.
         &#34;&#34;&#34;
+        logger.info(&#34;getting valid txs for policy: &#39;%s&#39;&#34;, policy)
         valid_txs = []
         if not unspent:
             return valid_txs
@@ -536,7 +557,6 @@ a decentralized node.</p></div>
             for asset in assets:
                 if policy not in asset:
                     continue
-                logger.error(policy)
                 slot = item[&#34;created_at&#34;][&#34;slot_no&#34;]
                 tx_id = item[&#34;transaction_id&#34;]
                 address = item[&#34;address&#34;]
@@ -555,7 +575,7 @@ a decentralized node.</p></div>
         value: int,
         policy: str,
         tag: str,
-        callback: Callable = None,
+        callback: Optional[Callable | None],
     ) -&gt; list:
         &#34;&#34;&#34;Retrieve a list of aliased signing addresses. An aliased
         signing address is an address that has been setup using a
@@ -602,7 +622,7 @@ a decentralized node.</p></div>
 <h3>Methods</h3>
 <dl>
 <dt id="src.simple_sign.backend.KupoContext.retrieve_metadata"><code class="name flex">
-<span>def <span class="ident">retrieve_metadata</span></span>(<span>self, value: int, policy: str, tag: str, callback: Callable = None) ‑> list</span>
+<span>def <span class="ident">retrieve_metadata</span></span>(<span>self, value: int, policy: str, tag: str, callback: Optional[Callable]) ‑> list</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Retrieve a list of aliased signing addresses. An aliased
@@ -636,7 +656,7 @@ def retrieve_metadata(
     value: int,
     policy: str,
     tag: str,
-    callback: Callable = None,
+    callback: Optional[Callable | None],
 ) -&gt; list:
     &#34;&#34;&#34;Retrieve a list of aliased signing addresses. An aliased
     signing address is an address that has been setup using a
@@ -678,7 +698,7 @@ def retrieve_metadata(
 </details>
 </dd>
 <dt id="src.simple_sign.backend.KupoContext.retrieve_nft_holders"><code class="name flex">
-<span>def <span class="ident">retrieve_nft_holders</span></span>(<span>self, policy: str, deny_list: list = None, seek_addr: str = None) ‑> list</span>
+<span>def <span class="ident">retrieve_nft_holders</span></span>(<span>self, policy: str, deny_list: list = None, addr: str = None) ‑> list</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Retrieve a list of NFT holders, e.g. a license to operate
@@ -691,7 +711,7 @@ address if desired.</p></div>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def retrieve_nft_holders(
-    self, policy: str, deny_list: list = None, seek_addr: str = None
+    self, policy: str, deny_list: list = None, addr: str = None
 ) -&gt; list:
     &#34;&#34;&#34;Retrieve a list of NFT holders, e.g. a license to operate
     a decentralized node.
@@ -700,17 +720,21 @@ address if desired.</p></div>
     to remove some results that are unhelpful, e.g. the minting
     address if desired.
     &#34;&#34;&#34;
-    unspent = self._retrieve_unspent_utxos()
+    if addr:
+        unspent = self._retrieve_unspent_utxos(addr)
+    else:
+        unspent = self._retrieve_unspent_utxos()
     holders = {}
     for item in unspent:
-        addr = item[&#34;address&#34;]
-        if seek_addr and addr != seek_addr:
+        unspent_addr = item[&#34;address&#34;]
+        unspent_staking = _get_staking_from_addr(unspent_addr)
+        if addr and addr not in (unspent_addr, unspent_staking):
             # don&#39;t process further than we have to if we&#39;re only
             # looking for a single address.
             continue
-        staking = _get_staking_from_addr(addr)
-        if addr in deny_list:
+        if deny_list and unspent_addr in deny_list:
             continue
+        staking = unspent_staking
         assets = item[&#34;value&#34;][&#34;assets&#34;]
         for key, _ in assets.items():
             if not key.startswith(policy):

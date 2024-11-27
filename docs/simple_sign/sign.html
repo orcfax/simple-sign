@@ -32,20 +32,25 @@
 # pylint: disable=W0613
 
 import argparse
+import binascii
+import copy
 import logging
 import os
 import sys
 import time
-from typing import Final
+from typing import Callable, Final
 
 import pycardano as pyc
 
 try:
+    from src.simple_sign.backend import KupoContext
     from src.simple_sign.version import get_version
 except ModuleNotFoundError:
     try:
+        from backend import KupoContext
         from version import get_version
     except ModuleNotFoundError:
+        from simple_sign.backend import KupoContext
         from simple_sign.version import get_version
 
 # Set up logging.
@@ -73,37 +78,88 @@ class UnknownSigningKey(Exception):
     &#34;&#34;&#34;Exception to raise when the signing key is unknown.&#34;&#34;&#34;
 
 
-def retrieve_aliased(pkey: str) -&gt; str:
+def retrieve_aliased(
+    context: KupoContext,
+    policy_id: str,
+    tag: str,
+    value: int,
+    callback: Callable,
+) -&gt; str:
     &#34;&#34;&#34;Retrieve another public key aliased by the given lookup.
 
     The result might then be used to verify using one of the other
-    methods in this library, e.g.
+    methods in this library, e.g. given an staking key returned for an
+    alias, verify if the staking key also holds the correct amount
+    of stake for a given token.
 
-    1. lookup aliased staking key.
-    2. lookup staking key in license pool.
-    3. if not exists, raise exception, else, pass.
+    NB. to keep in mind, does aliasing already guarantee a license is
+    held? If the policy is supplied?
 
-    We want to do this on an address by address basis. The difficulty
-    is consistent parsing of metadata that allows this function to be
-    broadly applicable across functions.
+    Aliasing can potentially be a generic process, it exists in this
+    library by way of helping realize that. It could be removed in
+    future, and so any feedback is appreciated if it works for you.
+
+    For more information; https://docs.orcfax.io/signing-key-aliasing
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)
+    if not policy_id:
+        policy_id = &#34;&#34;
+    if not value or not tag:
+        raise NotImplementedError(&#34;function requires a lovelace value and metadata tag&#34;)
+    aliases = context.retrieve_metadata(
+        value=value,
+        tag=tag,
+        policy=policy_id,
+        callback=callback,
+    )
+    return aliases
 
 
 def signature_in_staked_pool(
-    pkey: str, token_policy_id: str, min_stake: int
+    context: KupoContext, pkey: str, token_policy_id: str, min_stake: int
 ) -&gt; bool:
     &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
     enough stake in a given token.
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)
+    staking = context.retrieve_staked_holders(
+        addr=pkey,
+        token_policy=token_policy_id,
+    )
+    for key, value in copy.deepcopy(staking).items():
+        if value &gt; min_stake:
+            continue
+        del staking[key]
+    try:
+        staked = staking[pkey]
+        if not int(staked) &gt;= min_stake:
+            raise UnknownSigningKey(
+                f&#34;addr: &#39;{pkey}&#39;, does not have enough stake: &#39;{min_stake}&#39;&#34;,
+            )
+    except IndexError:
+        raise UnknownSigningKey(
+            f&#34;addr: &#39;{pkey}&#39;, is not knonwn to the network&#34;,
+        ) from IndexError
+    return True
 
 
-def signature_in_license_pool(pkey: str, policy_id: str) -&gt; bool:
+def signature_in_license_pool(
+    context: KupoContext, pkey: str, policy_id: str, suffix: str = &#34;&#34;
+) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading from license pool is not yet implemented&#34;)
+    md = context.retrieve_nft_holders(
+        policy=policy_id,
+        addr=pkey,
+    )
+    holding = {}
+    for k, v in md.items():
+        license_name = k.replace(policy_id, &#34;&#34;).replace(&#34;.&#34;, &#34;&#34;).replace(suffix, &#34;&#34;)
+        license_name = binascii.unhexlify(license_name).decode()
+        holding[license_name] = v
+    if not holding:
+        raise UnknownSigningKey(f&#34;addr &#39;{pkey}&#39; is not in possession of a license&#34;)
+    logger.info(&#34;information in license pool: &#39;%s&#39;&#34;, holding)
+    return True
 
 
 def signature_in_constitution_datum_utxo(pkey: str) -&gt; bool:
@@ -318,39 +374,58 @@ if __name__ == &#34;__main__&#34;:
 </details>
 </dd>
 <dt id="src.simple_sign.sign.retrieve_aliased"><code class="name flex">
-<span>def <span class="ident">retrieve_aliased</span></span>(<span>pkey: str) ‑> str</span>
+<span>def <span class="ident">retrieve_aliased</span></span>(<span>context: <a title="src.simple_sign.backend.KupoContext" href="backend.html#src.simple_sign.backend.KupoContext">KupoContext</a>, policy_id: str, tag: str, value: int, callback: Callable) ‑> str</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Retrieve another public key aliased by the given lookup.</p>
 <p>The result might then be used to verify using one of the other
-methods in this library, e.g.</p>
-<ol>
-<li>lookup aliased staking key.</li>
-<li>lookup staking key in license pool.</li>
-<li>if not exists, raise exception, else, pass.</li>
-</ol>
-<p>We want to do this on an address by address basis. The difficulty
-is consistent parsing of metadata that allows this function to be
-broadly applicable across functions.</p></div>
+methods in this library, e.g. given an staking key returned for an
+alias, verify if the staking key also holds the correct amount
+of stake for a given token.</p>
+<p>NB. to keep in mind, does aliasing already guarantee a license is
+held? If the policy is supplied?</p>
+<p>Aliasing can potentially be a generic process, it exists in this
+library by way of helping realize that. It could be removed in
+future, and so any feedback is appreciated if it works for you.</p>
+<p>For more information; <a href="https://docs.orcfax.io/signing-key-aliasing">https://docs.orcfax.io/signing-key-aliasing</a></p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def retrieve_aliased(pkey: str) -&gt; str:
+<pre><code class="python">def retrieve_aliased(
+    context: KupoContext,
+    policy_id: str,
+    tag: str,
+    value: int,
+    callback: Callable,
+) -&gt; str:
     &#34;&#34;&#34;Retrieve another public key aliased by the given lookup.
 
     The result might then be used to verify using one of the other
-    methods in this library, e.g.
+    methods in this library, e.g. given an staking key returned for an
+    alias, verify if the staking key also holds the correct amount
+    of stake for a given token.
 
-    1. lookup aliased staking key.
-    2. lookup staking key in license pool.
-    3. if not exists, raise exception, else, pass.
+    NB. to keep in mind, does aliasing already guarantee a license is
+    held? If the policy is supplied?
 
-    We want to do this on an address by address basis. The difficulty
-    is consistent parsing of metadata that allows this function to be
-    broadly applicable across functions.
+    Aliasing can potentially be a generic process, it exists in this
+    library by way of helping realize that. It could be removed in
+    future, and so any feedback is appreciated if it works for you.
+
+    For more information; https://docs.orcfax.io/signing-key-aliasing
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)</code></pre>
+    if not policy_id:
+        policy_id = &#34;&#34;
+    if not value or not tag:
+        raise NotImplementedError(&#34;function requires a lovelace value and metadata tag&#34;)
+    aliases = context.retrieve_metadata(
+        value=value,
+        tag=tag,
+        policy=policy_id,
+        callback=callback,
+    )
+    return aliases</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.retrieve_env_notaries"><code class="name flex">
@@ -453,7 +528,7 @@ their own project.</p></div>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_license_pool"><code class="name flex">
-<span>def <span class="ident">signature_in_license_pool</span></span>(<span>pkey: str, policy_id: str) ‑> bool</span>
+<span>def <span class="ident">signature_in_license_pool</span></span>(<span>context: <a title="src.simple_sign.backend.KupoContext" href="backend.html#src.simple_sign.backend.KupoContext">KupoContext</a>, pkey: str, policy_id: str, suffix: str = '') ‑> bool</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Validate whether signing key matches one of those in a pool of
@@ -462,15 +537,29 @@ licenses associated with the project and return True if so.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def signature_in_license_pool(pkey: str, policy_id: str) -&gt; bool:
+<pre><code class="python">def signature_in_license_pool(
+    context: KupoContext, pkey: str, policy_id: str, suffix: str = &#34;&#34;
+) -&gt; bool:
     &#34;&#34;&#34;Validate whether signing key matches one of those in a pool of
     licenses associated with the project and return True if so.
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading from license pool is not yet implemented&#34;)</code></pre>
+    md = context.retrieve_nft_holders(
+        policy=policy_id,
+        addr=pkey,
+    )
+    holding = {}
+    for k, v in md.items():
+        license_name = k.replace(policy_id, &#34;&#34;).replace(&#34;.&#34;, &#34;&#34;).replace(suffix, &#34;&#34;)
+        license_name = binascii.unhexlify(license_name).decode()
+        holding[license_name] = v
+    if not holding:
+        raise UnknownSigningKey(f&#34;addr &#39;{pkey}&#39; is not in possession of a license&#34;)
+    logger.info(&#34;information in license pool: &#39;%s&#39;&#34;, holding)
+    return True</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signature_in_staked_pool"><code class="name flex">
-<span>def <span class="ident">signature_in_staked_pool</span></span>(<span>pkey: str, token_policy_id: str, min_stake: int) ‑> bool</span>
+<span>def <span class="ident">signature_in_staked_pool</span></span>(<span>context: <a title="src.simple_sign.backend.KupoContext" href="backend.html#src.simple_sign.backend.KupoContext">KupoContext</a>, pkey: str, token_policy_id: str, min_stake: int) ‑> bool</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Validate whether the signing key belongs to a someone who has
@@ -480,12 +569,30 @@ enough stake in a given token.</p></div>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def signature_in_staked_pool(
-    pkey: str, token_policy_id: str, min_stake: int
+    context: KupoContext, pkey: str, token_policy_id: str, min_stake: int
 ) -&gt; bool:
     &#34;&#34;&#34;Validate whether the signing key belongs to a someone who has
     enough stake in a given token.
     &#34;&#34;&#34;
-    raise NotImplementedError(&#34;reading staked values is not yet implemented&#34;)</code></pre>
+    staking = context.retrieve_staked_holders(
+        addr=pkey,
+        token_policy=token_policy_id,
+    )
+    for key, value in copy.deepcopy(staking).items():
+        if value &gt; min_stake:
+            continue
+        del staking[key]
+    try:
+        staked = staking[pkey]
+        if not int(staked) &gt;= min_stake:
+            raise UnknownSigningKey(
+                f&#34;addr: &#39;{pkey}&#39;, does not have enough stake: &#39;{min_stake}&#39;&#34;,
+            )
+    except IndexError:
+        raise UnknownSigningKey(
+            f&#34;addr: &#39;{pkey}&#39;, is not knonwn to the network&#34;,
+        ) from IndexError
+    return True</code></pre>
 </details>
 </dd>
 <dt id="src.simple_sign.sign.signing_handler"><code class="name flex">
