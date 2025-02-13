@@ -163,7 +163,9 @@ class KupoContext(BackendContext):
             try:
                 _ = md_dict[0]["schema"][tag]
             except (IndexError, KeyError):
-                return md_list
+                # If there is no metadata, we continue. If we find it
+                # we can continue to augment the structure.
+                continue
             md_dict[0]["address"] = tx.address
             md_dict[0]["staking"] = tx.staking
             md_dict[0]["transaction"] = tx.tx_id
