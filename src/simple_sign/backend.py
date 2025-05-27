@@ -153,12 +153,14 @@ class KupoContext(BackendContext):
         """
         md_list = []
         for tx in tx_list:
+            req_url = f"{self._base_url}:{self._port}/metadata/{tx.slot}?transaction_id={tx.tx_id}"
             resp = requests.get(
-                f"{self._base_url}:{self._port}/metadata/{tx.slot}?transaction_id={tx.tx_id}",
+                req_url,
                 timeout=30,
             )
             if not resp.json():
-                return md_list
+                logger.debug("no metadata for Tx: %s", tx.tx_id)
+                continue
             md_dict = resp.json()
             try:
                 _ = md_dict[0]["schema"][tag]
@@ -293,10 +295,12 @@ class KupoContext(BackendContext):
 
         """
         unspent = self._retrieve_unspent_utxos()
+        logger.debug("unspent UTxO: %s", len(unspent))
         valid_txs = self._get_valid_txs(unspent, value, policy)
         if not valid_txs:
             return valid_txs
         md = self._retrieve_metadata(tag, valid_txs)
+        logger.debug("retrieved metadata: %s", len(md))
         if not callback:
             return md
         return callback(md)
